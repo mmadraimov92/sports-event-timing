@@ -1,0 +1,225 @@
+{
+  "openapi" : "3.0.0",
+  "info" : {
+    "description" : "API definition for event-timing-server",
+    "version" : "1.0.0",
+    "title" : "Sports event timing server",
+    "contact" : {
+      "email" : "mmadraimov@gmail.com"
+    }
+  },
+  "servers" : [{
+    "description" : "Local server",
+    "url" : "http://localhost:8080"
+  } ],
+  "paths" : {
+    "/leaderboard" : {
+      "get" : {
+        "summary" : "get current leaderboard",
+        "description" : "Returns current sorted leaderboard\n",
+        "responses" : {
+          "200" : {
+            "description" : "leaderboard",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeaderboardItem"
+                }
+              }
+            }
+          },
+          "500" : {
+            "$ref" : "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/update" : {
+      "post" : {
+        "summary" : "update timing data of an athlete",
+        "description" : "Updates leaderboard with provided data",
+        "responses" : {
+          "200" : {
+            "description" : "leaderboard updated",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Success"
+                }
+              }
+            }
+          },
+          "400" : {
+            "$ref" : "#/components/responses/BadRequest"
+          },
+          "500" : {
+            "$ref" : "#/components/responses/InternalServerError"
+          }
+        },
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TimingUpdateRequest"
+              }
+            }
+          },
+          "description" : "Inventory item to add"
+        }
+      }
+    },
+    "/ws" : {
+      "get" : {
+        "summary" : "subscribe to update via websocket",
+        "description" : "Connection is upgraded to WebSocket. When first connected server sends current\nleaderboard. The consequtive mesages are individual updated rows to leaderboard.\n",
+        "responses" : {
+          "default" : {
+            "description" : "WebSocket messages",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "oneOf" : [ {
+                    "$ref" : "#/components/schemas/LeaderboardItem"
+                  }, {
+                    "$ref" : "#/components/schemas/LeaderboardRowItem"
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Could not establish websocket connection. Client does not support ws",
+            "content" : {
+              "text/plain" : {
+                "schema" : {
+                  "type" : "string",
+                  "example" : "Bad Request"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "LeaderboardItem" : {
+        "type" : "array",
+        "items" : {
+          "$ref" : "#/components/schemas/LeaderboardRowItem"
+        }
+      },
+      "LeaderboardRowItem" : {
+        "type" : "object",
+        "properties" : {
+          "first_name" : {
+            "type" : "string",
+            "description" : "first name of athlete",
+            "example" : "John"
+          },
+          "last_name" : {
+            "type" : "string",
+            "description" : "last name of athlete",
+            "example" : "Doe"
+          },
+          "start_number" : {
+            "type" : "integer",
+            "description" : "Starting number of athlete",
+            "example" : 1
+          },
+          "timings" : {
+            "type" : "object",
+            "properties" : {
+              "finish_corridor" : {
+                "type" : "string",
+                "pattern" : "^\\d{2}:\\d{2}:\\d{2}(\\.\\d{0,3})?$",
+                "description" : "clock time when athlete crossed finish_corridor timing point",
+                "example" : "00:01:23.568"
+              },
+              "finish_line" : {
+                "type" : "string",
+                "pattern" : "^\\d{2}:\\d{2}:\\d{2}(\\.\\d{0,3})?$",
+                "description" : "clock time when athlete crossed finish_line timing point",
+                "example" : "00:02:13.87"
+              }
+            }
+          }
+        }
+      },
+      "TimingUpdateRequest" : {
+        "type" : "object",
+        "required" : [ "chip_id", "clock_time", "timing_point_id" ],
+        "properties" : {
+          "chip_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "chip id of athelete defined in database"
+          },
+          "timing_point_id" : {
+            "type" : "string",
+            "description" : "timing point identificator",
+            "enum" : [ "finish_corridor", "finish_line" ]
+          },
+          "clock_time" : {
+            "type" : "string",
+            "pattern" : "^\\d{2}:\\d{2}:\\d{2}(\\.\\d{0,3})?$",
+            "description" : "clock time when athlete crossed timing point",
+            "example" : "00:02:13.87"
+          }
+        }
+      },
+      "Success" : {
+        "type" : "object",
+        "properties" : {
+          "message" : {
+            "type" : "string",
+            "description" : "success message",
+            "example" : "updated"
+          }
+        }
+      },
+      "Error" : {
+        "type" : "object",
+        "properties" : {
+          "error" : {
+            "type" : "string",
+            "description" : "error description"
+          }
+        }
+      }
+    },
+    "responses" : {
+      "BadRequest" : {
+        "description" : "Malformed request",
+        "content" : {
+          "application/json" : {
+            "schema" : {
+              "$ref" : "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound" : {
+        "description" : "Athlete with given chip_id was not found",
+        "content" : {
+          "application/json" : {
+            "schema" : {
+              "$ref" : "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalServerError" : {
+        "description" : "Internal server error happened",
+        "content" : {
+          "application/json" : {
+            "schema" : {
+              "$ref" : "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

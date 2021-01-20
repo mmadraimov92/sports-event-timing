@@ -1,0 +1,21 @@
+version: "3.2"
+services:
+  backend:
+    build: .
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+    ports:
+      - "8080:8080"
+    environment:
+      DBURL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
+    depends_on:
+      - db
+  db:
+    image: "postgres:13.1-alpine"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./integration/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh

@@ -1,0 +1,76 @@
+variables:
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  LATEST_TAG: $CI_REGISTRY_IMAGE:latest
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_DRIVER: overlay2
+
+stages:
+  - test
+  - build
+  - deploy
+
+unit_tests:
+  stage: test
+  image: golang:1.15
+  cache:
+    paths:
+      - /go/pkg/mod/
+  services:
+    - name: docker:dind
+      alias: localhost
+  tags:
+    - docker
+  script:
+    - go mod download
+    - make unit-test
+
+integration_tests:
+  stage: test
+  image: golang:1.15
+  cache:
+    paths:
+      - /go/pkg/mod/
+  services:
+    - name: docker:dind
+      alias: localhost
+  tags:
+    - docker
+  script:
+    - go mod download
+    - make integration-test
+
+lint_code:
+  stage: test
+  image: golang:1.15
+  cache:
+    paths:
+      - /go/pkg/mod/
+  script:
+    - go install golang.org/x/lint/golint
+    - make lint
+  allow_failure: true
+
+docker-build:
+  stage: build
+  image: docker:dind
+  services:
+  - docker:dind
+  script:
+    - docker version
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $IMAGE_TAG .
+    - docker tag $IMAGE_TAG $LATEST_TAG
+    - docker push $IMAGE_TAG
+    - docker push $LATEST_TAG
+
+k8s-deploy:
+  stage: deploy
+  image: registry.gitlab.com/drmad92/mmadraimov-k8s-cluster/deployer
+  script:
+    - doctl version
+    - kubectl version --client
+    - doctl kubernetes cluster kubeconfig save private-k8s-cluster
+    - kubectl set image deployment/sport-events-timing-backend sport-events-timing-backend=$IMAGE_TAG
+    - kubectl rollout status deployment/sport-events-timing-backend
+  only: 
+    - master
